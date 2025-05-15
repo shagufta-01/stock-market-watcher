@@ -87,7 +87,7 @@ Then:
 
 ## 👤 Shagufta Fatima
 
-* **Your Name Here**
+* **Shagufta Fatima**
 * 📧 [shaguftafatima444@gmail.com](mailto:shaguftafatima444@gmail.com)
 
 
