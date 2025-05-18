@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 
 # Initialize pygame mixer for sound alerts
 pygame.mixer.init()
-alert_sound = pygame.mixer.Sound("alert.mp3")
+alert_sound = pygame.mixer.Sound("pop-1.mp3")
 
 # Excel logging
 excel_file = "matched_conditions.xlsx"
