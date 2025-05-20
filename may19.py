@@ -1,74 +1,107 @@
 import yfinance as yf
 import pandas as pd
+from datetime import datetime
+import schedule
+import time
+import pygame
+from plyer import notification
+import smtplib
+from email.message import EmailMessage
+import openpyxl
+import os
+import mplfinance as mpf
 
-companies = {
-    "Reliance Industries": "RELIANCE.NS",
-    "Tata Consultancy Services": "TCS.NS",
-    "HDFC Bank": "HDFCBANK.NS",
-    "ICICI Bank": "ICICIBANK.NS",
-    "Infosys": "INFY.NS",
-    "Hindustan Unilever": "HINDUNILVR.NS",
-    "ITC": "ITC.NS",
-    "State Bank of India": "SBIN.NS",
-    "Bharti Airtel": "BHARTIARTL.NS",
-    "Larsen & Toubro": "LT.NS",
-    "Kotak Mahindra Bank": "KOTAKBANK.NS",
-    "Axis Bank": "AXISBANK.NS",
-    "Bajaj Finance": "BAJFINANCE.NS",
-    "Asian Paints": "ASIANPAINT.NS",
-    "HCL Technologies": "HCLTECH.NS",
-    "Maruti Suzuki": "MARUTI.NS",
-    "Sun Pharmaceutical": "SUNPHARMA.NS",
-    "Titan Company": "TITAN.NS",
-    "Adani Enterprises": "ADANIENT.NS",
-    "Mahindra & Mahindra": "M&M.NS",
-    "Wipro": "WIPRO.NS",
-    "Power Grid Corporation": "POWERGRID.NS",
-    "UltraTech Cement": "ULTRACEMCO.NS",
-    "Nestle India": "NESTLEIND.NS",
-    "NTPC": "NTPC.NS"
-}
+# Initialize sound
+pygame.mixer.init()
+alert_sound_path = "alert.wav"  # Make sure this file exists in the same directory
 
-# Define your condition checking function
-def check_condition(df):
-    # Example condition:
-    # open == low and high == close for the candle
-    # You can customize this function as per your exact logic
-    
-    # We'll check only last candle here, but you can loop through df as needed
-    last_candle = df.iloc[-1]
-    if last_candle['Open'] == last_candle['Low'] and last_candle['High'] == last_candle['Close']:
-        return True
-    return False
+# Stock list
+watchlist = ["RELIANCE.NS", "TCS.NS", "INFY.NS"]
 
-# Fetch and check each company
-companies_meeting_condition = []
+# Log to Excel
+def log_to_excel(symbol, row):
+    filename = f"{symbol}_alerts.xlsx"
+    if not os.path.exists(filename):
+        wb = openpyxl.Workbook()
+        sheet = wb.active
+        sheet.append(["Time", "Open", "High", "Low", "Close", "Condition", "ML Prediction"])
+        wb.save(filename)
+    wb = openpyxl.load_workbook(filename)
+    sheet = wb.active
+    sheet.append(row)
+    wb.save(filename)
 
-for name, ticker in companies.items():
+# Sound alert
+def play_sound():
+    pygame.mixer.music.load(alert_sound_path)
+    pygame.mixer.music.play()
+
+# Desktop notification
+def show_notification(title, message):
+    notification.notify(title=title, message=message, timeout=10)
+
+# Email alert
+def send_email(subject, body):
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = subject
+    msg['From'] = "your_email@gmail.com"  # Replace
+    msg['To'] = "receiver_email@gmail.com"  # Replace
+
     try:
-        # Download 5min interval data for today
-        data = yf.download(ticker, period="1d", interval="5m", progress=False)
-        
-        # Filter between 3:15 PM and 3:30 PM
-        # data.index is a datetime index
-        mask = (data.index.time >= pd.to_datetime("15:15").time()) & (data.index.time <= pd.to_datetime("15:30").time())
-        timeframe_data = data.loc[mask]
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login("your_email@gmail.com", "your_app_password")  # Replace
+            smtp.send_message(msg)
+    except Exception as e:
+        print("Email error:", e)
 
-        if timeframe_data.empty:
-            # No data for that timeframe
-            continue
-        
-        # Check your condition on this timeframe data
-        # For example, check if any candle in this timeframe meets condition
-        for i in range(len(timeframe_data)):
-            candle = timeframe_data.iloc[i:i+1]
-            if check_condition(candle):
-                companies_meeting_condition.append(name)
-                break
+# Check stock conditions
+def check_conditions(symbol):
+    try:
+        data = yf.download(tickers=symbol, interval="5m", period="1d")
+        if len(data) < 6:
+            return
+
+        last = data.iloc[-1]
+        o, h, l, c = last['Open'], last['High'], last['Low'], last['Close']
+        condition = ""
+        condition_met = False
+
+        if round(o, 2) == round(l, 2) and round(h, 2) == round(c, 2):
+            condition = "Bullish Setup (Open=Low and High=Close)"
+            condition_met = True
+        elif all(data['Close'].iloc[-i] < data['Open'].iloc[-i] for i in range(1, 6)):
+            condition = "5 Consecutive Bearish Candles"
+            condition_met = True
+
+        prediction = 1 if c > o else 0
+
+        if condition_met:
+            message = f"{symbol}: {condition}"
+            details = f"""
+🔔 {message}
+Time  = {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Open  = {o:.2f}
+High  = {h:.2f}
+Low   = {l:.2f}
+Close = {c:.2f}
+ML Prediction = {"Bullish" if prediction else "Bearish"}
+"""
+            print(details)
+            play_sound()
+            show_notification("Stock Alert", message)
+            send_email("Stock Condition Alert", details)
+            log_to_excel(symbol, [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), o, h, l, c, condition, prediction])
+            mpf.plot(data.tail(30), type='candle', volume=True, title=symbol)
 
     except Exception as e:
-        print(f"Error processing {name}: {e}")
+        print(f"Error checking {symbol}: {e}")
 
-print("Companies meeting condition between 3:15 PM and 3:30 PM:")
-for c in companies_meeting_condition:
-    print(c)
+# Schedule every 5 minutes
+for symbol in watchlist:
+    schedule.every(5).minutes.do(check_conditions, symbol=symbol)
+
+print("📊 Monitoring started...")
+while True:
+    schedule.run_pending()
+    time.sleep(1)
