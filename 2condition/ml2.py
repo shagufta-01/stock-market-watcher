@@ -123,10 +123,10 @@ def analyze_and_alert(company_name, symbol, data):
             return
 
         row = data.iloc[-1]
-        open_price = float(row['Open'])
-        high_price = float(row['High'])
-        low_price = float(row['Low'])
-        close_price = float(row['Close'])
+        open_price = float(row['Open'].iloc[-1])
+        high_price = float(row['High'].iloc[-1])
+        low_price = float(row['Low'].iloc[-1])
+        close_price = float(row['Close'].iloc[-1])
 
         is_open_equal_low = open_price == low_price
         is_high_equal_close = high_price == close_price
@@ -134,10 +134,10 @@ def analyze_and_alert(company_name, symbol, data):
         is_low_equal_close = low_price == close_price
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        print(f"\n🕒 {company_name} ({symbol}) - {current_time}")
-        print(f"📊 OHLC - Open: {open_price:.2f}, High: {high_price:.2f}, Low: {low_price:.2f}, Close: {close_price:.2f}")
-        print(f"🔍 Conditions: O=L? {is_open_equal_low}, H=C? {is_high_equal_close}")
-        print("----------------------------------------")
+        # print(f"\n🕒 {company_name} ({symbol}) - {current_time}")
+        # print(f"📊 OHLC - Open: {open_price:.2f}, High: {high_price:.2f}, Low: {low_price:.2f}, Close: {close_price:.2f}")
+        # print(f"🔍 Conditions: O=L? {is_open_equal_low}, H=C? {is_high_equal_close}")
+        # print("----------------------------------------")
 
         # Get last 5 candles
         prev_5 = data.iloc[-6:-1]
